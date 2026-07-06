@@ -1,0 +1,15 @@
+{
+  "provider": "nvidia",
+  "nvidia": {
+    "api_key": "PASTE_YOUR_NVIDIA_API_KEY_HERE",
+    "base_url": "https://integrate.api.nvidia.com/v1",
+    "model": "z-ai/glm-5.2"
+  },
+  "gemini": {
+    "api_key": "PASTE_YOUR_GEMINI_API_KEY_HERE",
+    "model": "gemini-2.5-flash"
+  },
+  "voice": "en-GB-RyanNeural",
+  "user_name": "Boss",
+  "wake_words": ["boss baby", "bossbaby", "boss babe", "boss, baby", "bass baby", "boss bebe"]
+}

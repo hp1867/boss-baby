@@ -1,0 +1,10 @@
+# Secrets - never commit the real config with the API key
+config.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Temp audio
+*.mp3

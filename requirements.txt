@@ -1,0 +1,6 @@
+SpeechRecognition
+PyAudio
+requests
+edge-tts
+pygame
+pywebview
