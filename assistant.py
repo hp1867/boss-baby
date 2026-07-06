@@ -72,6 +72,19 @@ Rules for "say":
 """
 
 WAKE_HINT = 'Say "Boss Baby" to wake me'
+CONVERSE_HINT = "Listening... say 'go to sleep' when done"
+
+STOP_PHRASES = (
+    "go to sleep",
+    "go back to sleep",
+    "that's all",
+    "that is all",
+    "stop listening",
+    "goodbye",
+    "good bye",
+    "thank you boss baby",
+    "thanks boss baby",
+)
 
 
 class RateLimited(Exception):
@@ -307,6 +320,35 @@ class Assistant:
                         continue
 
                 self.handle(command, source)
+                self.converse(source)
+
+    def converse(self, source):
+        """Conversation mode: keep listening for follow-ups after the first
+        command, no wake word needed. Ends after silence or a stop phrase."""
+        misses = 0
+        while True:
+            self.set_state("listening", CONVERSE_HINT)
+            heard = self.listen(source, timeout=8, phrase_limit=12)
+            if not heard:
+                misses += 1
+                if misses >= 2:
+                    self.set_state("idle", WAKE_HINT)
+                    return
+                continue
+            misses = 0
+            low = heard.lower()
+            if any(p in low for p in STOP_PHRASES):
+                self.set_state("speaking", "Speaking...")
+                self.speak("Going back to sleep, Boss. Just call my name.")
+                self.set_state("idle", WAKE_HINT)
+                return
+            # tolerate the wake word being repeated mid-conversation
+            wake = next((w for w in self.wake_words if w in low), None)
+            if wake:
+                rest = low.split(wake, 1)[1].strip(" ,.!?")
+                if rest:
+                    low = rest
+            self.handle(low, source)
 
     def handle(self, command, source):
         self.set_state("thinking", "Processing...", user=command)
@@ -315,4 +357,3 @@ class Assistant:
         self.run_actions(result.get("actions"))
         self.set_state("speaking", "Speaking...", reply=say)
         self.speak(say)
-        self.set_state("idle", WAKE_HINT)

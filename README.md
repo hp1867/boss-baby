@@ -23,7 +23,12 @@ and controls your PC — open apps, search the web, play YouTube, open files.
 
 ## Usage
 
-Say the wake word, then your command — or say it all in one breath:
+Say the wake word once, then just keep talking — after the first command it
+stays in **conversation mode** and responds to everything without needing the
+wake word again. It goes back to sleep after ~16 seconds of silence, or when
+you say "go to sleep" / "that's all" / "goodbye".
+
+Examples:
 
 - "Boss Baby, open Chrome"
 - "Boss Baby, search the web for weather in Melbourne"
