@@ -191,7 +191,13 @@ class Assistant:
         body = {
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
             "contents": contents,
-            "generationConfig": {"response_mime_type": "application/json", "temperature": 0.7},
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.7,
+                "maxOutputTokens": 400,
+                # no thinking: replies must be instant, not deliberate
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
         }
         resp = requests.post(url, json=body, timeout=30)
         if resp.status_code == 429:
@@ -251,17 +257,23 @@ class Assistant:
         if not text:
             return
         try:
+            import hashlib
+
             import edge_tts
             import pygame
 
-            path = os.path.join(tempfile.gettempdir(), f"bossbaby_{int(time.time() * 1000)}.mp3")
-            asyncio.run(edge_tts.Communicate(text, self.voice).save(path))
+            # cache generated audio so repeated phrases play instantly
+            cache_dir = os.path.join(tempfile.gettempdir(), "bossbaby_tts")
+            os.makedirs(cache_dir, exist_ok=True)
+            key = hashlib.md5(f"{self.voice}|{text}".encode("utf-8")).hexdigest()
+            path = os.path.join(cache_dir, key + ".mp3")
+            if not os.path.exists(path):
+                asyncio.run(edge_tts.Communicate(text, self.voice).save(path))
             pygame.mixer.music.load(path)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
             pygame.mixer.music.unload()
-            os.remove(path)
         except Exception:
             pass
 
@@ -290,7 +302,6 @@ class Assistant:
             pygame.mixer.init()
             self.sr = sr
             self.rec = sr.Recognizer()
-            self.rec.dynamic_energy_threshold = True
             mic = sr.Microphone()
         except Exception as exc:
             self.set_state("error", f"Startup failed: {exc}")
@@ -299,6 +310,13 @@ class Assistant:
         with mic as source:
             self.set_state("idle", "Calibrating microphone...")
             self.rec.adjust_for_ambient_noise(source, duration=1)
+            # lock the threshold: dynamic mode drifts up when the assistant's
+            # own voice plays through the speakers, making it go deaf
+            self.rec.dynamic_energy_threshold = False
+            self.rec.energy_threshold = max(self.rec.energy_threshold, 250)
+            # snappier end-of-phrase detection (defaults: 0.8 / 0.5)
+            self.rec.pause_threshold = 0.6
+            self.rec.non_speaking_duration = 0.4
             self.set_state("idle", WAKE_HINT)
 
             while True:
@@ -308,6 +326,7 @@ class Assistant:
                 low = heard.lower()
                 wake = next((w for w in self.wake_words if w in low), None)
                 if not wake:
+                    self.set_state("idle", f'Heard "{heard}" - {WAKE_HINT}')
                     continue
 
                 command = low.split(wake, 1)[1].strip(" ,.!?")
