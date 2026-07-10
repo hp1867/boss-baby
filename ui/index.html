@@ -129,6 +129,47 @@
     padding: 0 20px;
   }
 
+  /* ---------- activity panel ---------- */
+  .activity {
+    border-top: 1px solid rgba(0,229,255,0.12);
+    background: rgba(2, 8, 14, 0.75);
+  }
+  .act-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px;
+    cursor: pointer;
+  }
+  .act-header:hover { background: rgba(0,229,255,0.05); }
+  .act-arrow {
+    flex: none;
+    font-size: 10px; color: #59b8d6;
+    transition: transform 0.2s;
+  }
+  .activity.open .act-arrow { transform: rotate(90deg); }
+  .act-title {
+    flex: none;
+    font-size: 10px; letter-spacing: 3px; color: #59b8d6;
+  }
+  .act-now {
+    flex: 1;
+    font-family: Consolas, monospace;
+    font-size: 11px; color: #9adfff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-align: right;
+  }
+  .act-log {
+    display: none;
+    max-height: 150px; overflow-y: auto;
+    padding: 4px 18px 10px;
+    font-family: Consolas, monospace;
+    font-size: 11px; line-height: 1.6;
+  }
+  .activity.open .act-log { display: block; }
+  .act-log .entry { color: #7fc9e8; }
+  .act-log .entry .t { color: #3f7f99; margin-right: 8px; }
+  .act-log::-webkit-scrollbar { width: 6px; }
+  .act-log::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.2); border-radius: 3px; }
+
   /* ---------- transcript ---------- */
   .transcript {
     padding: 14px 18px 18px;
@@ -203,6 +244,15 @@
     <div class="status" id="status">BOOTING...</div>
   </div>
 
+  <div class="activity" id="activity">
+    <div class="act-header" onclick="bb.toggleLog()" title="Click to see the full activity log">
+      <span class="act-arrow">&#9654;</span>
+      <span class="act-title">ACTIVITY</span>
+      <span class="act-now" id="actNow">booting...</span>
+    </div>
+    <div class="act-log" id="actLog"></div>
+  </div>
+
   <div class="transcript">
     <div class="line you"><div class="who">YOU</div><div class="msg" id="userMsg">&mdash;</div></div>
     <div class="line"><div class="who">BB</div><div class="msg" id="replyMsg">Standing by, Boss.</div></div>
@@ -221,6 +271,38 @@
       if (reply !== null && reply !== undefined) {
         document.getElementById("replyMsg").textContent = reply;
       }
+    },
+
+    toggleLog: function () {
+      var panel = document.getElementById("activity");
+      panel.classList.toggle("open");
+      if (panel.classList.contains("open")) {
+        var log = document.getElementById("actLog");
+        log.scrollTop = log.scrollHeight;
+      }
+    },
+
+    addLog: function (message) {
+      document.getElementById("actNow").textContent = message;
+
+      var log = document.getElementById("actLog");
+      var now = new Date();
+      var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      var stamp = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+
+      var entry = document.createElement("div");
+      entry.className = "entry";
+      var t = document.createElement("span");
+      t.className = "t";
+      t.textContent = stamp;
+      entry.appendChild(t);
+      entry.appendChild(document.createTextNode(message));
+      log.appendChild(entry);
+
+      while (log.children.length > 100) {
+        log.removeChild(log.firstChild);
+      }
+      log.scrollTop = log.scrollHeight;
     }
   };
 </script>

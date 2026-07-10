@@ -30,7 +30,7 @@ def main():
         os.path.join(BASE_DIR, "ui", "index.html"),
         js_api=api,
         width=460,
-        height=660,
+        height=700,
         frameless=True,
         on_top=True,
         background_color="#03060c",

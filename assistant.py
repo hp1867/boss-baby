@@ -118,6 +118,14 @@ class Assistant:
         except Exception:
             pass
 
+    def log(self, message):
+        """Push a line to the HUD's live activity panel."""
+        js = "window.bb && bb.addLog({})".format(json.dumps(message))
+        try:
+            self.window.evaluate_js(js)
+        except Exception:
+            pass
+
     # ---------- LLM brain ----------
 
     def ask_llm(self, user_text):
@@ -231,10 +239,13 @@ class Assistant:
 
     def run_actions(self, actions):
         for action in actions or []:
+            kind = action.get("type", "")
+            target = str(action.get("target", ""))
             try:
-                self._run_action(action.get("type", ""), str(action.get("target", "")))
+                self.log(f"Action: {kind} -> {target}" if target else f"Action: {kind}")
+                self._run_action(kind, target)
             except Exception:
-                pass
+                self.log(f"Action failed: {kind} -> {target}")
 
     def _run_action(self, kind, target):
         if kind == "open_app":
@@ -268,6 +279,7 @@ class Assistant:
             key = hashlib.md5(f"{self.voice}|{text}".encode("utf-8")).hexdigest()
             path = os.path.join(cache_dir, key + ".mp3")
             if not os.path.exists(path):
+                self.log("Voice: generating audio...")
                 asyncio.run(edge_tts.Communicate(text, self.voice).save(path))
             pygame.mixer.music.load(path)
             pygame.mixer.music.play()
@@ -318,6 +330,7 @@ class Assistant:
             self.rec.pause_threshold = 0.6
             self.rec.non_speaking_duration = 0.4
             self.set_state("idle", WAKE_HINT)
+            self.log(f"Ready. Mic calibrated (threshold {int(self.rec.energy_threshold)})")
 
             while True:
                 heard = self.listen(source, timeout=None, phrase_limit=7)
@@ -327,7 +340,9 @@ class Assistant:
                 wake = next((w for w in self.wake_words if w in low), None)
                 if not wake:
                     self.set_state("idle", f'Heard "{heard}" - {WAKE_HINT}')
+                    self.log(f'Heard: "{heard}" (no wake word, ignoring)')
                     continue
+                self.log(f'Wake word detected: "{heard}"')
 
                 command = low.split(wake, 1)[1].strip(" ,.!?")
                 if not command:
@@ -351,12 +366,14 @@ class Assistant:
             if not heard:
                 misses += 1
                 if misses >= 2:
+                    self.log("Silence, going back to sleep")
                     self.set_state("idle", WAKE_HINT)
                     return
                 continue
             misses = 0
             low = heard.lower()
             if any(p in low for p in STOP_PHRASES):
+                self.log("Stop phrase heard, going back to sleep")
                 self.set_state("speaking", "Speaking...")
                 self.speak("Going back to sleep, Boss. Just call my name.")
                 self.set_state("idle", WAKE_HINT)
@@ -371,8 +388,13 @@ class Assistant:
 
     def handle(self, command, source):
         self.set_state("thinking", "Processing...", user=command)
+        self.log(f'Command: "{command}"')
+        model = self.gemini.get("model") if self.provider == "gemini" else self.nvidia.get("model")
+        self.log(f"Thinking ({model})...")
+        t0 = time.time()
         result = self.ask_llm(command)
         say = result.get("say", "")
+        self.log(f"Brain replied in {time.time() - t0:.1f}s")
         self.run_actions(result.get("actions"))
         self.set_state("speaking", "Speaking...", reply=say)
         self.speak(say)
