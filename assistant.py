@@ -14,7 +14,24 @@ import requests
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
+# these MUST be imported on the main thread before the webview starts:
+# loading their DLLs from the assistant thread deadlocks with the Windows
+# loader lock while the GUI message loop is running
+import edge_tts  # noqa: E402
+import pygame  # noqa: E402
+import speech_recognition as sr  # noqa: E402
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(BASE_DIR, "bossbaby.log")
+
+
+def flog(message):
+    """Append a line to the on-disk debug log (survives crashes)."""
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
+    except Exception:
+        pass
 
 APP_ALIASES = {
     "file explorer": "explorer",
@@ -270,9 +287,6 @@ class Assistant:
         try:
             import hashlib
 
-            import edge_tts
-            import pygame
-
             # cache generated audio so repeated phrases play instantly
             cache_dir = os.path.join(tempfile.gettempdir(), "bossbaby_tts")
             os.makedirs(cache_dir, exist_ok=True)
@@ -298,7 +312,8 @@ class Assistant:
             return self.rec.recognize_google(audio)
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             return None
-        except sr.RequestError:
+        except sr.RequestError as exc:
+            flog(f"speech recognition RequestError: {exc!r}")
             self.set_state("error", "Speech service unreachable, retrying...")
             time.sleep(2)
             return None
@@ -306,22 +321,35 @@ class Assistant:
     # ---------- Main loop ----------
 
     def run(self):
+        try:
+            self._run()
+        except Exception:
+            import traceback
+
+            flog("FATAL in assistant thread:\n" + traceback.format_exc())
+            self.set_state("error", "Assistant crashed - see bossbaby.log")
+
+    def _run(self):
+        flog("assistant thread started")
         time.sleep(2)  # let the UI finish loading
         try:
-            import pygame
-            import speech_recognition as sr
-
+            flog("initializing audio output...")
             pygame.mixer.init()
+            flog("audio output ok, opening microphone...")
             self.sr = sr
             self.rec = sr.Recognizer()
             mic = sr.Microphone()
+            flog("microphone opened")
         except Exception as exc:
+            flog(f"startup failed: {exc!r}")
             self.set_state("error", f"Startup failed: {exc}")
             return
 
         with mic as source:
             self.set_state("idle", "Calibrating microphone...")
+            flog("calibrating mic...")
             self.rec.adjust_for_ambient_noise(source, duration=1)
+            flog(f"calibrated, threshold={self.rec.energy_threshold:.0f}")
             # lock the threshold: dynamic mode drifts up when the assistant's
             # own voice plays through the speakers, making it go deaf
             self.rec.dynamic_energy_threshold = False
