@@ -69,6 +69,29 @@ function Get-HeadCommit {
     return $result.Output.Trim()
 }
 
+function Test-PushNeeded {
+    $upstream = Invoke-Git -GitArgs @(
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        "@{upstream}"
+    )
+    if ($upstream.ExitCode -ne 0) {
+        return $true
+    }
+
+    $ahead = Invoke-Git -GitArgs @(
+        "rev-list",
+        "--count",
+        "$($upstream.Output.Trim())..HEAD"
+    )
+    if ($ahead.ExitCode -ne 0) {
+        return $true
+    }
+
+    return ([int]$ahead.Output.Trim()) -gt 0
+}
+
 function Get-WorkingTreeSnapshot {
     $result = Invoke-Git -GitArgs @("status", "--porcelain=v1", "--untracked-files=all")
     if ($result.ExitCode -ne 0) {
@@ -203,29 +226,33 @@ if (-not $createdNew) {
 }
 
 try {
-    Write-SyncLog "Auto-sync started for $RepoPath."
-
     if ($Once) {
+        $savedCommit = $false
         $firstSnapshot = Get-WorkingTreeSnapshot
         if (-not [string]::IsNullOrWhiteSpace($firstSnapshot)) {
             Start-Sleep -Seconds $SettleSeconds
             $secondSnapshot = Get-WorkingTreeSnapshot
             if ($secondSnapshot -eq $firstSnapshot) {
-                [void](Save-WorkingTree)
+                $savedCommit = Save-WorkingTree
             } else {
                 Write-SyncLog "Files are still changing; automatic commit postponed."
             }
         }
-        if (Publish-CurrentBranch) {
-            exit 0
+
+        if ($savedCommit -or (Test-PushNeeded)) {
+            if (Publish-CurrentBranch) {
+                exit 0
+            }
+            exit 1
         }
-        exit 1
+        exit 0
     }
 
+    Write-SyncLog "Continuous auto-sync started for $RepoPath."
     $lastSnapshot = $null
     $stableSince = $null
     $lastHead = Get-HeadCommit
-    $pushPending = $true
+    $pushPending = Test-PushNeeded
     $lastPushAttempt = [datetime]::MinValue
 
     while ($true) {
