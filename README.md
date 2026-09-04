@@ -52,3 +52,19 @@ Examples:
 - `config.json` holds your API key and is **git-ignored** — never commit it.
 - Requires an internet connection (speech recognition, Gemini, and TTS are online services).
 - Free-tier Gemini has rate limits; if it says it's rate-limited, wait a minute.
+
+## Automatic GitHub sync
+
+On the configured Windows PC, the **BossBaby GitHub Auto Sync** scheduled task
+runs `scripts/auto-sync.ps1` after sign-in. After project files remain unchanged
+for 12 seconds, the watcher creates an `Auto-commit` snapshot and pushes the
+current branch to `origin`. If the network is unavailable, the commit remains
+local and the watcher retries every minute.
+
+The watcher never force-pushes, pauses during merges/rebases, and explicitly
+keeps `config.json` out of automatic commits. Its local activity log is stored
+at `.git/auto-sync.log`. To reinstall the task after moving the folder, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-auto-sync.ps1
+```
