@@ -26,9 +26,15 @@ $arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hi
 
 $action = New-ScheduledTaskAction `
     -Execute $powerShellExe `
-    -Argument $arguments `
+    -Argument "$arguments -Once" `
     -WorkingDirectory $RepoPath
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
+$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $identity
+$minuteTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date).AddMinutes(1) `
+    -RepetitionInterval (New-TimeSpan -Minutes 1) `
+    -RepetitionDuration (New-TimeSpan -Days 3650)
+$triggers = @($logonTrigger, $minuteTrigger)
 $principal = New-ScheduledTaskPrincipal `
     -UserId $identity `
     -LogonType Interactive `
@@ -45,10 +51,10 @@ $settings = New-ScheduledTaskSettingsSet `
 Register-ScheduledTask `
     -TaskName $TaskName `
     -Action $action `
-    -Trigger $trigger `
+    -Trigger $triggers `
     -Principal $principal `
     -Settings $settings `
-    -Description "Automatically commits BossBaby edits and pushes them to GitHub." `
+    -Description "Checks every minute, automatically commits BossBaby edits, and pushes them to GitHub." `
     -Force | Out-Null
 
 Start-ScheduledTask -TaskName $TaskName

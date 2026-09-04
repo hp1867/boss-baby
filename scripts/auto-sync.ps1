@@ -206,7 +206,16 @@ try {
     Write-SyncLog "Auto-sync started for $RepoPath."
 
     if ($Once) {
-        [void](Save-WorkingTree)
+        $firstSnapshot = Get-WorkingTreeSnapshot
+        if (-not [string]::IsNullOrWhiteSpace($firstSnapshot)) {
+            Start-Sleep -Seconds $SettleSeconds
+            $secondSnapshot = Get-WorkingTreeSnapshot
+            if ($secondSnapshot -eq $firstSnapshot) {
+                [void](Save-WorkingTree)
+            } else {
+                Write-SyncLog "Files are still changing; automatic commit postponed."
+            }
+        }
         if (Publish-CurrentBranch) {
             exit 0
         }

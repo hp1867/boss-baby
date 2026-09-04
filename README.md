@@ -56,10 +56,10 @@ Examples:
 ## Automatic GitHub sync
 
 On the configured Windows PC, the **BossBaby GitHub Auto Sync** scheduled task
-runs `scripts/auto-sync.ps1` after sign-in. After project files remain unchanged
-for 12 seconds, the watcher creates an `Auto-commit` snapshot and pushes the
-current branch to `origin`. If the network is unavailable, the commit remains
-local and the watcher retries every minute.
+runs `scripts/auto-sync.ps1` after sign-in and once per minute. When project
+files remain unchanged for a 12-second safety window, it creates an
+`Auto-commit` snapshot and pushes the current branch to `origin`. If the
+network is unavailable, the commit remains local and the next run retries.
 
 The watcher never force-pushes, pauses during merges/rebases, and explicitly
 keeps `config.json` out of automatic commits. Its local activity log is stored
